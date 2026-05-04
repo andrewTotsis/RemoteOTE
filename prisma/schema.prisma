@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime @default(now())
+  reviews      Review[]
+  threads      Thread[]
+  posts        Post[]
+  votes        Vote[]
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  website     String?
+  description String?
+  // Pipe-separated tags so we stay portable across Postgres providers
+  roleTypes   String   @default("") // e.g. "SDR|AE|AM|BDR"
+  compModel   String   @default("") // e.g. "base+commission|100% commission|1099|MLM"
+  redFlags    String   @default("") // e.g. "fake-ote|pay-to-play|misclassification"
+  remotePolicy String  @default("remote") // remote|hybrid|onsite
+  createdAt   DateTime @default(now())
+  reviews     Review[]
+  threads     Thread[]
+}
+
+model Review {
+  id            String   @id @default(cuid())
+  userId        String
+  companyId     String
+  ratingPay     Int      // 1-5: pay accuracy / OTE legitimacy
+  ratingLeads   Int      // 1-5: lead quality / pipeline
+  ratingMgmt    Int      // 1-5: management
+  ratingLegit   Int      // 1-5: legitimacy / non-scammy
+  ratingCulture Int      // 1-5: culture
+  title         String
+  body          String
+  isAnonymous   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  votes         Vote[]
+}
+
+model Thread {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String?
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  posts     Post[]
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  threadId  String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  votes     Vote[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  userId    String
+  reviewId  String?
+  postId    String?
+  value     Int      // 1 or -1
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review    Review?  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reviewId])
+  @@unique([userId, postId])
+}
