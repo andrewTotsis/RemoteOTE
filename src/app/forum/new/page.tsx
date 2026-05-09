@@ -1,11 +1,16 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { Turnstile } from "@/components/Turnstile";
+import { getTurnstileSiteKey, verifyTurnstile } from "@/lib/turnstile";
 
 async function createThread(formData: FormData) {
   "use server";
   const user = await requireUser();
   if (!user) redirect("/login");
+
+  const captchaToken = String(formData.get("cf-turnstile-response") || "");
+  if (!(await verifyTurnstile(captchaToken))) redirect("/forum/new?error=captcha");
 
   const title = String(formData.get("title") || "").trim();
   const body = String(formData.get("body") || "").trim();
@@ -34,7 +39,11 @@ export default async function NewThreadPage({
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  const error = sp.error === "missing" ? "Title and body are required." : null;
+  const errorMap: Record<string, string> = {
+    missing: "Title and body are required.",
+    captcha: "Captcha failed. Please try again.",
+  };
+  const error = sp.error ? errorMap[sp.error] || null : null;
   const companies = await prisma.company.findMany({ orderBy: { name: "asc" } });
 
   return (
@@ -59,6 +68,7 @@ export default async function NewThreadPage({
           <label className="label">Your post *</label>
           <textarea name="body" required rows={8} className="textarea" placeholder="What's the situation? What do you want to know?"></textarea>
         </div>
+        <Turnstile siteKey={getTurnstileSiteKey()} />
         <button type="submit" className="btn btn-primary w-full">Post thread</button>
       </form>
     </div>

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession, requireUser } from "@/lib/session";
+import { Turnstile } from "@/components/Turnstile";
+import { getTurnstileSiteKey, verifyTurnstile } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +12,23 @@ async function reply(formData: FormData) {
   const user = await requireUser();
   const threadId = String(formData.get("threadId") || "");
   if (!user) redirect(`/login`);
+  const captchaToken = String(formData.get("cf-turnstile-response") || "");
+  if (!(await verifyTurnstile(captchaToken))) redirect(`/forum/${threadId}?error=captcha`);
   const body = String(formData.get("body") || "").trim();
   if (!body || !threadId) redirect(`/forum/${threadId}`);
   await prisma.post.create({ data: { threadId, userId: user.id, body } });
   redirect(`/forum/${threadId}`);
 }
 
-export default async function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ThreadPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
   const t = await prisma.thread.findUnique({
     where: { id },
     include: {
@@ -74,6 +85,10 @@ export default async function ThreadPage({ params }: { params: Promise<{ id: str
           <input type="hidden" name="threadId" value={t.id} />
           <label className="label">Your reply</label>
           <textarea name="body" required rows={5} className="textarea" placeholder="Add to the conversation…"></textarea>
+          {sp.error === "captcha" && (
+            <div className="rounded-md bg-flag/10 px-3 py-2 text-sm text-flag">Captcha failed. Please try again.</div>
+          )}
+          <Turnstile siteKey={getTurnstileSiteKey()} />
           <button type="submit" className="btn btn-primary">Post reply</button>
         </form>
       ) : (

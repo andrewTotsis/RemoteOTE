@@ -2,11 +2,19 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { StarInput } from "@/components/Stars";
+import { Turnstile } from "@/components/Turnstile";
+import { getTurnstileSiteKey, verifyTurnstile } from "@/lib/turnstile";
 
 async function createReview(formData: FormData) {
   "use server";
   const user = await requireUser();
   if (!user) redirect("/login");
+
+  const captchaToken = String(formData.get("cf-turnstile-response") || "");
+  const companyIdForRedirect = String(formData.get("companyId") || "");
+  if (!(await verifyTurnstile(captchaToken))) {
+    redirect(`/reviews/new?companyId=${companyIdForRedirect}&error=captcha`);
+  }
 
   const companyId = String(formData.get("companyId") || "");
   const title = String(formData.get("title") || "").trim();
@@ -70,7 +78,11 @@ export default async function NewReviewPage({
     );
   }
 
-  const error = sp.error === "invalid" ? "Please fill all required fields and rate each dimension 1–5." : null;
+  const errorMap: Record<string, string> = {
+    invalid: "Please fill all required fields and rate each dimension 1–5.",
+    captcha: "Captcha failed. Please try again.",
+  };
+  const error = sp.error ? errorMap[sp.error] || null : null;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -99,6 +111,7 @@ export default async function NewReviewPage({
         <label className="flex items-center gap-2 text-sm text-ink/80">
           <input type="checkbox" name="isAnonymous" defaultChecked /> Post anonymously (recommended — your display name won't be shown)
         </label>
+        <Turnstile siteKey={getTurnstileSiteKey()} />
         <button type="submit" className="btn btn-primary w-full">Publish review</button>
       </form>
     </div>

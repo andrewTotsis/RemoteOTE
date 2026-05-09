@@ -3,9 +3,16 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
+import { Turnstile } from "@/components/Turnstile";
+import { getTurnstileSiteKey, verifyTurnstile } from "@/lib/turnstile";
 
 async function signup(formData: FormData) {
   "use server";
+
+  const captchaToken = String(formData.get("cf-turnstile-response") || "");
+  const captchaOk = await verifyTurnstile(captchaToken);
+  if (!captchaOk) redirect("/signup?error=captcha");
+
   const email = String(formData.get("email") || "").toLowerCase().trim();
   const password = String(formData.get("password") || "");
   const displayName = String(formData.get("displayName") || "").trim();
@@ -43,6 +50,7 @@ export default async function SignupPage({
     missing: "Fill in every field.",
     password: "Password must be at least 8 characters.",
     exists: "An account with that email already exists.",
+    captcha: "Captcha failed. Please try again.",
   };
   const error = sp.error ? errorMap[sp.error] || "Something went wrong." : null;
 
@@ -67,6 +75,7 @@ export default async function SignupPage({
           <input type="password" name="password" required minLength={8} className="input" />
           <p className="text-xs text-ink/50 mt-1">Min 8 characters.</p>
         </div>
+        <Turnstile siteKey={getTurnstileSiteKey()} />
         <button type="submit" className="btn btn-primary w-full">Create account</button>
         <p className="text-sm text-ink/60 text-center">
           Already have an account? <Link href="/login" className="underline">Sign in</Link>

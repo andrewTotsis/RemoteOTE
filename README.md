@@ -19,7 +19,25 @@ Live: deploy to Vercel — instructions below.
 - **Forum** — general threads or threads attached to a company
 - **Scam alerts** page filters companies the community has tagged with red flags (`fake-ote`, `pay-to-play`, `1099-misclassification`, `mlm`, `no-leads`, etc.)
 - **Auth** — email/password signup + login + session
+- **Bot protection** — Cloudflare Turnstile captcha on signup, review submission, new threads, and thread replies
 - **Seed data** — sample companies, reviews, and threads to demo the UI
+
+## Bot protection / captcha
+
+The site uses [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) on every form that creates content (signup, write-review, new-thread, thread-reply). The verify call happens server-side in each server action.
+
+By default the app falls back to Cloudflare's public **always-passes test keys**, so the widget renders and the build works without any setup — useful in dev, **but provides zero real protection**. To get actual bot blocking:
+
+1. Go to https://dash.cloudflare.com/?to=/:account/turnstile (free, no credit card)
+2. Add a site → choose **Managed** challenge → list `remoteote.vercel.app` (and `localhost` if you want it locally)
+3. Copy the **Site Key** and **Secret Key**
+4. Set them on Vercel:
+   ```bash
+   vercel env add NEXT_PUBLIC_TURNSTILE_SITE_KEY production
+   vercel env add TURNSTILE_SECRET_KEY production
+   vercel deploy --prod
+   ```
+   Or paste them in the Vercel dashboard → Project → Settings → Environment Variables.
 
 ## Local development
 
